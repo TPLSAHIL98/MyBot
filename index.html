@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Universal AI Chat Interface</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            gemini: {
+              bgLight: '#f8fafd',
+              cardLight: '#ffffff',
+              sidebarLight: '#f0f4f9',
+              bgDark: '#131314',
+              cardDark: '#1e1f20',
+              sidebarDark: '#1e1f20',
+              accent: '#1a73e8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+    
+    /* Ensure main app is hidden until JS initializes */
+    #app {
+      display: none;
+    }
+
+    /* Markdown Styling Overrides */
+    .msg-body p {
+      margin-bottom: 0.75rem;
+    }
+    .msg-body p:last-child {
+      margin-bottom: 0;
+    }
+    .msg-body code {
+      background-color: rgba(156, 163, 175, 0.2);
+      padding: 0.15rem 0.35rem;
+      border-radius: 0.25rem;
+      font-family: monospace;
+      font-size: 0.875em;
+    }
+    .msg-body pre {
+      background-color: #1e1f20;
+      color: #f3f4f6;
+      padding: 0.85rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .msg-body pre code {
+      background-color: transparent;
+      padding: 0;
+      color: inherit;
+    }
+    .msg-body ul {
+      list-style-type: disc;
+      padding-left: 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .msg-body ol {
+      list-style-type: decimal;
+      padding-left: 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+  </style>
+</head>
+<body class="h-full bg-gemini-bgLight dark:bg-gemini-bgDark text-gray-800 dark:text-gray-100 transition-colors duration-200 antialiased font-sans">
+
+  <div id="loading" class="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-gemini-bgDark z-50">
+    <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <p class="mt-4 text-gray-600 dark:text-gray-300 font-medium text-sm">Initializing App...</p>
+  </div>
+
+  <div id="app" class="flex h-[100dvh] w-full overflow-hidden relative">
+
+    <div id="sidebarBackdrop" onclick="toggleSidebar(false)" class="fixed inset-0 bg-black/50 z-20 md:hidden hidden transition-opacity"></div>
+
+    <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-30 w-72 bg-gemini-sidebarLight dark:bg-gemini-sidebarDark border-r border-gray-200 dark:border-zinc-800 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out shrink-0">
+      
+      <div class="p-4 flex items-center justify-between border-b border-gray-200/60 dark:border-zinc-800">
+        <button onclick="createNewChat()" class="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-full transition shadow-sm text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <span>New Chat</span>
+        </button>
+        <button onclick="toggleSidebar(false)" class="md:hidden p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 ml-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div id="chatList" class="flex-1 overflow-y-auto p-2 space-y-1">
+        </div>
+
+      <div class="p-3 border-t border-gray-200/60 dark:border-zinc-800 space-y-1 bg-gemini-sidebarLight dark:bg-gemini-sidebarDark">
+        <button onclick="openSettingsModal()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-zinc-800 rounded-lg transition">
+          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Settings</span>
+        </button>
+        <button onclick="toggleDarkMode()" class="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-zinc-800 rounded-lg transition">
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-500 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+            <svg class="w-5 h-5 text-amber-400 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <span id="themeLabel">Dark Mode</span>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full min-w-0 bg-gemini-bgLight dark:bg-gemini-bgDark relative">
+      
+      <header class="h-14 border-b border-gray-200 dark:border-zinc-800 px-4 flex items-center justify-between bg-gemini-bgLight/90 dark:bg-gemini-bgDark/90 backdrop-blur shrink-0 z-10">
+        <div class="flex items-center gap-3 min-w-0">
+          <button onclick="toggleSidebar(true)" class="md:hidden p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-800 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="truncate">
+            <h1 id="currentChatTitle" class="font-semibold text-gray-800 dark:text-gray-100 text-sm md:text-base truncate">New Chat</h1>
+            <span id="activeModelBadge" class="text-[11px] text-gray-500 dark:text-gray-400 block truncate">deepseek/deepseek-r1:free</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button onclick="openPromptModal()" title="System Prompt" class="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-800 rounded-lg transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          </button>
+          <button onclick="clearCurrentChatMessages()" title="Clear Messages" class="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-800 rounded-lg transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        </div>
+
+      <div class="p-3 md:p-4 bg-gemini-bgLight dark:bg-gemini-bgDark shrink-0">
+        <div class="max-w-4xl mx-auto relative flex items-end bg-gemini-sidebarLight dark:bg-gemini-cardDark border border-gray-300 dark:border-zinc-700 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+          <textarea 
+            id="userInput" 
+            rows="1" 
+            placeholder="Message Gemini AI..." 
+            class="w-full bg-transparent px-4 py-3.5 focus:outline-none resize-none text-sm md:text-base max-h-40 overflow-y-auto text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            onkeydown="handleKeyDown(event)"
+            oninput="autoResizeTextarea(this)"
+          ></textarea>
+          <button 
+            id="sendBtn" 
+            onclick="sendMessage()" 
+            class="m-2 p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 text-white rounded-xl transition flex items-center justify-center shrink-0"
+          >
+            <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5m0 0l-7 7m7-7l7 7"/></svg>
+          </button>
+        </div>
+        <p class="text-[11px] text-center text-gray-400 dark:text-gray-500 mt-2">Gemini AI Client • Powered by OpenRouter API</p>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-gemini-cardDark w-full max-w-md rounded-2xl p-6 shadow-xl border border-gray-200 dark:border-zinc-800">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">API Configuration</h3>
+        <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">OpenRouter API Key</label>
+          <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." class="w-full bg-gray-100 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Model Name</label>
+          <input id="modelInput" type="text" placeholder="deepseek/deepseek-r1:free" class="w-full bg-gray-100 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          <p class="text-[11px] text-gray-400 mt-1">Default: deepseek/deepseek-r1:free</p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition">Cancel</button>
+        <button onclick="saveSettings()" class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="promptModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-gemini-cardDark w-full max-w-md rounded-2xl p-6 shadow-xl border border-gray-200 dark:border-zinc-800">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">System Instructions</h3>
+        <button onclick="closePromptModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Custom Persona / System Prompt</label>
+        <textarea id="systemPromptInput" rows="4" placeholder="You are a helpful Senior Frontend Engineer..." class="w-full bg-gray-100 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-xl p-3 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"></textarea>
+      </div>
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="closePromptModal()" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl transition">Cancel</button>
+        <button onclick="saveSystemPrompt()" class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'gemini_app_state_v2';
+    
+    let state = {
+      apiKey: '',
+      model: 'deepseek/deepseek-r1:free',
+      darkMode: false,
+      chats: [],
+      currentChatId: null
+    };
+
+    let isGenerating = false;
+
+    // Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        loadState();
+        applyTheme();
+        renderChatList();
+        
+        if (!state.chats.length) {
+          createNewChat(false);
+        } else if (!state.currentChatId || !state.chats.find(c => c.id === state.currentChatId)) {
+          state.currentChatId = state.chats[0].id;
+        }
+        
+        renderCurrentChat();
+      } catch (e) {
+        console.error('Initialization error:', e);
+      } finally {
+        // Hide loader safely after JavaScript initializes
+        const loader = document.getElementById('loading');
+        const app = document.getElementById('app');
+        if (loader) loader.style.display = 'none';
+        if (app) app.style.display = 'flex';
+      }
+    });
+
+    // State Persistence
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          state = { ...state, ...parsed };
+        } catch (err) {
+          console.error('Failed to parse state from localStorage', err);
+        }
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (err) {
+        console.error('Failed to save state to localStorage', err);
+      }
+    }
+
+    // Theme Management
+    function applyTheme() {
+      const html = document.documentElement;
+      if (state.darkMode) {
+        html.classList.add('dark');
+      } else {
+        html.classList.remove('dark');
+      }
+    }
+
+    function toggleDarkMode() {
+      state.darkMode = !state.darkMode;
+      applyTheme();
+      saveState();
+    }
+
+    // UI Helpers
+    function toggleSidebar(open) {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (!sidebar || !backdrop) return;
+      if (open) {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function autoResizeTextarea(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+    }
+
+    function handleKeyDown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    // Chat Management
+    function getCurrentChat() {
+      return state.chats.find(c => c.id === state.currentChatId) || null;
+    }
+
+    function createNewChat(switchImmediately = true) {
+      const newChat = {
+        id: 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        title: 'New Chat',
+        systemPrompt: '',
+        messages: []
+      };
+      state.chats.unshift(newChat);
+      if (switchImmediately) {
+        state.currentChatId = newChat.id;
+      }
+      saveState();
+      renderChatList();
+      if (switchImmediately) {
+        renderCurrentChat();
+        toggleSidebar(false);
+      }
+    }
+
+    function switchChat(chatId) {
+      state.currentChatId = chatId;
+      saveState();
+      renderChatList();
+      renderCurrentChat();
+      toggleSidebar(false);
+    }
+
+    function deleteChat(chatId, e) {
+      e.stopPropagation();
+      state.chats = state.chats.filter(c => c.id !== chatId);
+      if (state.currentChatId === chatId) {
+        state.currentChatId = state.chats.length ? state.chats[0].id : null;
+      }
+      if (!state.chats.length) {
+        createNewChat(false);
+      }
+      saveState();
+      renderChatList();
+      renderCurrentChat();
+    }
+
+    function renameChat(chatId, e) {
+      e.stopPropagation();
+      const chat = state.chats.find(c => c.id === chatId);
+      if (!chat) return;
+      const newTitle = prompt('Rename Chat:', chat.title);
+      if (newTitle && newTitle.trim()) {
+        chat.title = newTitle.trim();
+        saveState();
+        renderChatList();
+        if (state.currentChatId === chatId) {
+          document.getElementById('currentChatTitle').textContent = chat.title;
+        }
+      }
+    }
+
+    function clearCurrentChatMessages() {
+      const chat = getCurrentChat();
+      if (chat && chat.messages.length > 0) {
+        if (confirm('Clear all messages in this conversation?')) {
+          chat.messages = [];
+          saveState();
+          renderCurrentChat();
+        }
+      }
+    }
+
+    // Rendering Logic
+    function renderChatList() {
+      const container = document.getElementById('chatList');
+      if (!container) return;
+      container.innerHTML = '';
+
+      state.chats.forEach(chat => {
+        const isActive = chat.id === state.currentChatId;
+        const item = document.createElement('div');
+        item.className = `group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-sm transition ${
+          isActive 
+            ? 'bg-blue-100/70 dark:bg-zinc-800 text-blue-600 dark:text-blue-400 font-medium' 
+            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-zinc-800/60'
+        }`;
+        item.onclick = () => switchChat(chat.id);
+
+        item.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <svg class="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            <span class="truncate">${escapeHtml(chat.title)}</span>
+          </div>
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onclick="renameChat('${chat.id}', event)" t
